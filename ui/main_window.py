@@ -11,7 +11,7 @@ from queue import Queue
 from pathlib import Path
 
 from core.camera import Camera, VideoFile, get_available_cameras
-from core.detector import Detector
+from core.detector import Detector, PtDetector
 from core.monitor import Monitor
 from core.overlay import draw_overlay
 
@@ -48,22 +48,28 @@ class MainWindow:
     
     def _setup_ui(self):
         """Setup UI components with proper layout."""
-        # Main frame
+        # Settings frame (Pack FIRST so it stays at the top)
+        settings_frame = tk.Frame(self.root)
+        settings_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        
+        # Control frame (Pack SECOND so it stays below settings)
+        control_frame = tk.Frame(self.root)
+        control_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        
+        # Main frame for video (Pack LAST so it takes remaining space)
         main_frame = tk.Frame(self.root)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        main_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Video display label
         self.label = tk.Label(main_frame, bg='black')
         self.label.pack(fill=tk.BOTH, expand=True)
         
-        # Settings frame
-        settings_frame = tk.Frame(self.root)
-        settings_frame.pack(fill=tk.X, padx=5, pady=5)
-        
         # Input type selection
         tk.Label(settings_frame, text="Input:", font=('Arial', 9)).pack(side=tk.LEFT, padx=5)
-        tk.Radiobutton(settings_frame, text="Camera", variable=self.input_type, value="camera", font=('Arial', 9), command=self._on_input_type_changed).pack(side=tk.LEFT, padx=2)
-        tk.Radiobutton(settings_frame, text="Video File", variable=self.input_type, value="video", font=('Arial', 9), command=self._on_input_type_changed).pack(side=tk.LEFT, padx=2)
+        self.radio_cam = tk.Radiobutton(settings_frame, text="Camera", variable=self.input_type, value="camera", font=('Arial', 9), command=self._on_input_type_changed)
+        self.radio_cam.pack(side=tk.LEFT, padx=2)
+        self.radio_vid = tk.Radiobutton(settings_frame, text="Video File", variable=self.input_type, value="video", font=('Arial', 9), command=self._on_input_type_changed)
+        self.radio_vid.pack(side=tk.LEFT, padx=2)
         
         # Camera selection
         tk.Label(settings_frame, text="Camera:", font=('Arial', 9)).pack(side=tk.LEFT, padx=5)
@@ -76,7 +82,8 @@ class MainWindow:
         tk.Label(settings_frame, text="Video:", font=('Arial', 9)).pack(side=tk.LEFT, padx=5)
         self.video_label = tk.Label(settings_frame, text="(No file selected)", fg='gray', font=('Arial', 9), width=20)
         self.video_label.pack(side=tk.LEFT, padx=2)
-        tk.Button(settings_frame, text="Browse...", command=self._select_video_file, font=('Arial', 9)).pack(side=tk.LEFT, padx=2)
+        self.btn_browse = tk.Button(settings_frame, text="Browse...", command=self._select_video_file, font=('Arial', 9))
+        self.btn_browse.pack(side=tk.LEFT, padx=2)
         
         # Model selection
         tk.Label(settings_frame, text="Model:", font=('Arial', 9)).pack(side=tk.LEFT, padx=5)
@@ -86,11 +93,10 @@ class MainWindow:
         self._update_model_list()
         
         # Refresh button for camera detection
-        tk.Button(settings_frame, text="🔄 Refresh", command=self._update_camera_list, font=('Arial', 9)).pack(side=tk.LEFT, padx=5)
+        self.btn_refresh = tk.Button(settings_frame, text="🔄 Refresh", command=self._update_camera_list, font=('Arial', 9))
+        self.btn_refresh.pack(side=tk.LEFT, padx=5)
         
-        # Control frame
-        control_frame = tk.Frame(self.root)
-        control_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Note: control_frame was already created and packed above
         
         # Buttons
         self.btn_play = tk.Button(
@@ -198,20 +204,22 @@ class MainWindow:
             logger.warning("No cameras found during scan")
     
     def _update_model_list(self):
-        """Update available models list."""
+        """Update available models list (.onnx and .pt)."""
         models_dir = Path("models")
-        onnx_files = []
+        model_files = []
         if models_dir.exists():
             onnx_files = sorted([f.name for f in models_dir.glob("*.onnx")])
+            pt_files = sorted([f.name for f in models_dir.glob("*.pt")])
+            model_files = onnx_files + pt_files
         
-        if onnx_files:
-            self.model_combo['values'] = onnx_files
+        if model_files:
+            self.model_combo['values'] = model_files
             self.model_combo.current(0)
         else:
             self.model_combo['values'] = ["No models found"]
             self.model_combo.current(0)
         
-        self.available_models = onnx_files
+        self.available_models = model_files
     
     def _init_components(self):
         """Initialize camera/video, detector, and monitor."""
@@ -237,20 +245,31 @@ class MainWindow:
             
             # Get selected model
             if not self.available_models:
-                raise FileNotFoundError("No ONNX models found in models/ directory")
+                raise FileNotFoundError("No models found in models/ directory")
             selected_model = self.model_combo.get()
             model_path = Path("models") / selected_model
             
             if not model_path.exists():
                 raise FileNotFoundError(f"Model not found: {model_path}")
             
-            logger.info(f"Loading model: {selected_model}...")
-            self.detector = Detector(
-                str(model_path),
-                imgsz=320,
-                conf=0.4,
-                use_gpu=True
-            )
+            # Choose detector based on file extension
+            ext = model_path.suffix.lower()
+            if ext == '.pt':
+                logger.info(f"Loading .pt model: {selected_model} (imgsz=640)...")
+                self.detector = PtDetector(
+                    str(model_path),
+                    imgsz=640,
+                    conf=0.4,
+                    use_gpu=True
+                )
+            else:
+                logger.info(f"Loading .onnx model: {selected_model} (imgsz=320)...")
+                self.detector = Detector(
+                    str(model_path),
+                    imgsz=320,
+                    conf=0.4,
+                    use_gpu=True
+                )
             
             logger.info("Initializing monitor...")
             self.monitor = Monitor(window_size=30)
@@ -264,6 +283,18 @@ class MainWindow:
             messagebox.showerror("Initialization Error", f"Failed to initialize:\n{e}")
             raise
     
+    def _set_inputs_state(self, disabled=True):
+        """Enable or disable input widgets."""
+        state = tk.DISABLED if disabled else tk.NORMAL
+        cb_state = tk.DISABLED if disabled else 'readonly'
+        
+        self.radio_cam.config(state=state)
+        self.radio_vid.config(state=state)
+        self.camera_combo.config(state=cb_state)
+        self.btn_browse.config(state=state)
+        self.model_combo.config(state=cb_state)
+        self.btn_refresh.config(state=state)
+
     def start(self):
         """Start the application."""
         if self.running:
@@ -275,6 +306,7 @@ class MainWindow:
             self.running = True
             self.btn_play.config(state=tk.DISABLED)
             self.btn_stop.config(state=tk.NORMAL)
+            self._set_inputs_state(disabled=True)
             self.status_label.config(text="Status: Running", fg='green')
             
             # Start inference thread
@@ -292,12 +324,14 @@ class MainWindow:
             self.running = False
             self.btn_play.config(state=tk.NORMAL)
             self.btn_stop.config(state=tk.DISABLED)
+            self._set_inputs_state(disabled=False)
     
     def stop(self):
         """Stop the application."""
         self.running = False
         self.btn_play.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.DISABLED)
+        self._set_inputs_state(disabled=False)
         self.status_label.config(text="Status: Stopped", fg='red')
         
         if self.camera:
@@ -360,9 +394,15 @@ class MainWindow:
             # Convert BGR to RGB for PIL
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             
-            # Resize for display if needed
-            display_size = (1024, 640)
-            rgb = cv2.resize(rgb, display_size)
+            # Resize to fit the label's actual size
+            target_w = self.label.winfo_width()
+            target_h = self.label.winfo_height()
+            
+            # Fallback size if window hasn't fully rendered yet
+            if target_w < 100 or target_h < 100:
+                target_w, target_h = 800, 480
+                
+            rgb = cv2.resize(rgb, (target_w, target_h))
             
             # Convert to PIL and display
             image = Image.fromarray(rgb)

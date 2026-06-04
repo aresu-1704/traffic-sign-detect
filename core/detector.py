@@ -353,3 +353,128 @@ class Detector:
     def get_avg_inference_time(self):
         """Get average inference time over last 30 frames."""
         return sum(self.inference_times) / len(self.inference_times) if self.inference_times else 0
+
+
+class PtDetector:
+    """Ultralytics YOLO .pt model detector with same interface as ONNX Detector."""
+
+    def __init__(
+        self,
+        model_path,
+        imgsz=640,
+        conf=0.4,
+        use_gpu=True,
+        label_path=None
+    ):
+        """Initialize ultralytics YOLO detector.
+        
+        Args:
+            model_path: Path to .pt model
+            imgsz: Input image size (default 640 for .pt)
+            conf: Confidence threshold
+            use_gpu: Use GPU if available
+            label_path: Path to label.yaml (auto-detected if None)
+        """
+        from ultralytics import YOLO
+        
+        self.imgsz = imgsz
+        self.conf = conf
+        self.inference_times = []
+        
+        # Load class labels from label.yaml
+        self.labels = load_labels(label_path)
+        
+        # Load YOLO model
+        logger.info(f"Loading ultralytics model: {model_path}")
+        self.model = YOLO(model_path)
+        
+        # Auto-detect device
+        import torch
+        if use_gpu and torch.cuda.is_available():
+            self.device = 'cuda'
+        else:
+            self.device = 'cpu'
+        logger.info(f"Model loaded: {model_path} (device: {self.device}, imgsz: {imgsz})")
+
+    def _get_label(self, class_id):
+        """Get human-readable label for a class ID."""
+        if self.labels:
+            return self.labels.get(class_id, f"class_{class_id}")
+        # Fallback to model's built-in names
+        if hasattr(self.model, 'names') and class_id in self.model.names:
+            return self.model.names[class_id]
+        return f"class_{class_id}"
+
+    def predict(self, frame):
+        """Run inference and draw labeled bounding boxes.
+        
+        Args:
+            frame: Input BGR frame
+            
+        Returns:
+            (frame, detections) tuple
+        """
+        start_time = time.time()
+        
+        results = self.model.predict(
+            frame,
+            imgsz=self.imgsz,
+            conf=self.conf,
+            device=self.device,
+            verbose=False
+        )
+        
+        infer_time = time.time() - start_time
+        self.inference_times.append(infer_time)
+        if len(self.inference_times) > 30:
+            self.inference_times.pop(0)
+        
+        detections = []
+        
+        if results and len(results) > 0:
+            result = results[0]
+            if result.boxes is not None and len(result.boxes) > 0:
+                boxes = result.boxes
+                for i in range(len(boxes)):
+                    # Get bbox coordinates (xyxy format, already in pixel coords)
+                    x1, y1, x2, y2 = boxes.xyxy[i].cpu().numpy().astype(int)
+                    score = float(boxes.conf[i].cpu().numpy())
+                    class_id = int(boxes.cls[i].cpu().numpy())
+                    
+                    class_name = self._get_label(class_id)
+                    color = self._get_color(class_id)
+                    
+                    # Draw bounding box
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                    
+                    # Draw label with background
+                    label_text = f"{class_name} {score:.0%}"
+                    (tw, th), baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                    label_y = max(y1 - 6, th + 6)
+                    cv2.rectangle(frame, (x1, label_y - th - 6), (x1 + tw + 4, label_y + baseline - 4), color, -1)
+                    cv2.putText(frame, label_text, (x1 + 2, label_y - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                    
+                    detections.append({
+                        'bbox': (int(x1), int(y1), int(x2), int(y2)),
+                        'confidence': score,
+                        'class_id': class_id,
+                        'class_name': class_name
+                    })
+        
+        if detections:
+            for d in detections:
+                logger.info(f"[DETECT] {d['class_name']} ({d['confidence']:.0%}) at {d['bbox']}")
+
+        return frame, detections
+    
+    @staticmethod
+    def _get_color(class_id):
+        """Generate a consistent color for each class ID."""
+        hue = int((class_id * 37) % 180)
+        color_hsv = np.array([[[hue, 200, 230]]], dtype=np.uint8)
+        color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)
+        return tuple(int(c) for c in color_bgr[0][0])
+    
+    def get_avg_inference_time(self):
+        """Get average inference time over last 30 frames."""
+        return sum(self.inference_times) / len(self.inference_times) if self.inference_times else 0
