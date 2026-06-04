@@ -247,7 +247,7 @@ class MainWindow:
             logger.info(f"Loading model: {selected_model}...")
             self.detector = Detector(
                 str(model_path),
-                imgsz=640,
+                imgsz=320,
                 conf=0.4,
                 use_gpu=True
             )
