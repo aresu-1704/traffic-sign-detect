@@ -2,149 +2,6 @@
 
 Ứng dụng phát hiện biển báo giao thông trong thời gian thực sử dụng YOLO và ONNX Runtime.
 
-## 🎯 Features
-
-- ✅ Real-time traffic sign detection
-- ✅ GPU acceleration support (CUDA, TensorRT)
-- ✅ Multi-threaded inference for smooth UI
-- ✅ Performance monitoring (FPS, latency, CPU, RAM, temperature)
-- ✅ Optimized ONNX model inference
-- ✅ Professional GUI with status indicators
-- ✅ Frame buffering with adaptive dropping
-- ✅ Comprehensive logging
-
-## 📋 Requirements
-
-- Python 3.8+
-- Webcam or camera device
-- Windows/Linux/macOS
-
-### Optional
-- NVIDIA GPU with CUDA support (for GPU acceleration)
-
-## 🚀 Installation
-
-### 1. Setup Virtual Environment
-
-```bash
-cd traffic-sign-detect
-
-# Create virtual environment (Already done)
-python -m venv .venv
-
-# Activate virtual environment
-# On Windows:
-.venv\Scripts\activate
-# On Linux/macOS:
-source .venv/bin/activate
-```
-
-### 2. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Add Model File
-
-Place your ONNX model in `models/` directory:
-- `models/best.pt` (recommended)
-- `models/vsyolo.pt`
-- `models/yolo12n.pt`
-- `models/yolo26n.pt`
-
-## 🎮 Usage
-
-### Basic Run
-
-```bash
-python app.py
-```
-
-### GUI Controls
-
-- **▶ Play**: Start camera and detection
-- **■ Stop**: Stop detection and release camera
-- **Status Indicator**: Shows application status
-  - Green: Ready/Running
-  - Orange: Initializing
-  - Red: Error/Stopped
-
-### Keyboard Shortcuts
-
-- Press `Window Close (X)`: Exit application (with confirmation)
-
-## 📊 Performance Metrics
-
-The overlay displays in real-time:
-
-| Metric | Description | Unit |
-|--------|-------------|------|
-| CPU | CPU usage percentage | % |
-| RAM | Memory usage percentage | % |
-| TEMP | CPU temperature | °C/N/A |
-| FPS | Frames per second (smoothed) | fps |
-| LAT | Inference latency (smoothed) | ms |
-
-## ⚙️ Configuration
-
-All configurable parameters are in `config.py`:
-
-```python
-# Camera settings
-CAMERA = {
-    'id': 0,
-    'width': 640,
-    'height': 480,
-    'fps': 30,
-}
-
-# Model settings
-MODEL = {
-    'imgsz': 320,
-    'conf_threshold': 0.4,
-    'use_gpu': True,
-}
-
-# Performance tuning
-PERFORMANCE = {
-    'ui_update_fps': 30,
-    'metrics_window': 30,
-}
-```
-
-See `OPTIMIZATION.md` for detailed tuning guide.
-
-## 📁 Project Structure
-
-```
-traffic-sign-detect/
-├── app.py                      # Main entry point
-├── config.py                   # Configuration parameters
-├── requirements.txt            # Python dependencies
-├── OPTIMIZATION.md             # Optimization guide
-├── README.md                   # This file
-├── app.log                     # Application logs
-├── .venv/                      # Virtual environment
-│
-├── models/
-│   ├── best.pt                # ONNX model
-│   ├── vsyolo.pt
-│   ├── yolo12n.pt
-│   └── yolo26n.pt
-│
-├── core/
-│   ├── camera.py              # Camera handling
-│   ├── detector.py            # ONNX inference
-│   ├── monitor.py             # Performance monitoring
-│   └── overlay.py             # Visualization overlay
-│
-└── ui/
-    └── main_window.py         # Tkinter GUI
-```
-
-## 🔧 Troubleshooting
-
 ### Application Won't Start
 ```bash
 # Check Python version
@@ -187,7 +44,7 @@ pip install --upgrade -r requirements.txt
 - Close other applications
 - Reduce camera resolution
 
-## 📝 Logging
+## Logging
 
 Application logs are saved in `app.log` with:
 - Application lifecycle events
@@ -207,7 +64,7 @@ type app.log
 grep ERROR app.log
 ```
 
-## 🎓 Tips for Best Performance
+## Tips for Best Performance
 
 ### For Real-time Performance (30+ FPS)
 1. Use GPU if available
@@ -228,14 +85,7 @@ grep ERROR app.log
 4. Close other applications
 5. Lower camera FPS to 15
 
-## 🤝 Support
-
-For issues or questions:
-1. Check `OPTIMIZATION.md` for detailed technical information
-2. Review `app.log` for error messages
-3. Verify `config.py` settings match your hardware
-
-## 📜 License
+## License
 
 This project uses:
 - OpenCV (BSD)
@@ -243,12 +93,12 @@ This project uses:
 - Pillow (PIL License)
 - psutil (BSD)
 
-## 🎯 Next Steps
+## Next Steps
 
-1. ✅ Run `python app.py` to start the application
-2. ✅ Click "▶ Play" to begin detection
-3. ✅ Monitor real-time metrics on screen
-4. ✅ Adjust config.py for your hardware if needed
-5. ✅ Check app.log for detailed information
+1. Run `python app.py` to start the application
+2. Click "▶ Play" to begin detection
+3. Monitor real-time metrics on screen
+4. Adjust config.py for your hardware if needed
+5. Check app.log for detailed information
 
-Happy detecting! 🚗🛑
+Happy detecting!
